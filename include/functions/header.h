@@ -1,6 +1,36 @@
 #include <random>
 #include <iostream>
 #include <cmath>
+#include <complex>
+#include <math.h>
+#define _USE_MATH_DEFINES
+# define M_PI 3.14159265358979323846
+
+
+template <typename T>
+T Random(T a, T b) {
+	std::random_device random_device;
+	std::mt19937 generator(random_device());
+	std::uniform_real_distribution<double> distribution(a, b);
+	T res = static_cast<T>(distribution(generator));
+	return res;
+}
+
+template<typename T>
+std::complex<T> Random(std::complex<T> a, std::complex<T> b) {
+	T real1 = std::min(a.real(), b.real());
+	T real2 = std::max(a.real(), b.real());
+	T imag1 = std::min(a.imag(), b.imag());
+	T imag2 = std::max(a.imag(), b.imag());
+	std::random_device random_device;
+	std::mt19937 generator(random_device());
+	std::uniform_real_distribution<T> distribution_real(real1, real2);
+	T x = distribution_real(generator);
+	std::uniform_real_distribution<T> distribution_imag(imag1, imag2);
+	T y = distribution_imag(generator);
+	std::complex<T> point(x, y);
+	return point;
+}
 
 template <typename T>
 struct Point {
@@ -12,11 +42,12 @@ public:
 	T get_x() const;
 	T get_y() const;
 	double distance(const Point<T>* point);
+	double distance_complex(const Point<T>* point);
 };
 
 template <typename T>
 class broken_line {
-	Point<T>** _points;
+	Point<T>** _points; 
 	int _size;
 public:
 	broken_line(const broken_line<T>& other);
@@ -34,7 +65,8 @@ public:
 	int size() const;
 	void swap(broken_line<T>& other);
 	void push_point(const Point<T>& point);
-	double lenght();
+	double length();
+	double length_complex();
 	void make_polygon(const int N, const double radius);
 };
 
@@ -58,17 +90,13 @@ template <typename T>
 broken_line<T>::broken_line(int size) {
 	_size = size;
 }
-
 template <typename T>
 broken_line<T>::broken_line(T low, T hight, int count) {
-	std::random_device rd;
-	std::mt19937 gen(rd());
 	_points = new Point<T>*[count];
 	for (int i = 0; i < count; i++)
 	{
-		std::uniform_real_distribution<> dist(low, hight);
-		T x = dist(gen);
-		T y = dist(gen);
+		T x = Random(low, hight);
+		T y = Random(low, hight);
 		Point<T> a(x, y);
 		_points[i] = new Point<T>(a);
 	}
@@ -99,17 +127,18 @@ T Point<T>::get_y() const{
 
 template <typename T>
 Point<T> broken_line<T>::operator[](int index) const {
-	//if (index < 0)
-	//	throw runtime_error("Input out of range");
+	if (index < 0 || index > _size) {
+		throw std::out_of_range("Invalid index");
+	}
 	return *_points[index];
 }
-
 
 template <typename T>
 Point<T>& broken_line<T>::operator[](int index)
 {
-	//if (index < 0)
-	//	throw runtime_error("Input out of range");
+	if (index < 0) {
+		throw std::out_of_range("Invalid index");
+	}
 	return *_points[index];
 }
 
@@ -124,9 +153,12 @@ broken_line<T>::~broken_line()
 
 template <typename T>
 broken_line<T>& broken_line<T>::operator=(const broken_line<T>& rhs) {
-	broken_line<T> copy(rhs);
-	copy.swap(*this);
+	if (*this != rhs) {
+		broken_line<T> copy(rhs);
+		copy.swap(*this);
+	}
 	return *this;
+
 }
 
 template <typename T>
@@ -208,10 +240,6 @@ broken_line<T> broken_line<T>::operator+(const Point<T>& point) {
 template <typename T>
 void broken_line<T>::push_point(const Point<T>& point) {
 	auto new_points = new Point<T>*[_size + 1];
-	for (int i = 0; i < _size; i++)
-	{
-		new_points[i] = _points[i];
-	}
 	for (int i = _size; i > 0; i--)
 	{
 		new_points[i] = _points[i - 1];
@@ -230,12 +258,28 @@ double Point<T>::distance(const Point<T>* point) {
 }
 
 template <typename T>
-double broken_line<T>::lenght() {
-	double lenght_line = 0;
+double broken_line<T>::length() {
+	double length_line = 0;
 	for (int i = 1; i < _size; i++) {
-		lenght_line += _points[i - 1]->distance(_points[i]);
+		length_line += _points[i - 1]->distance(_points[i]);
 	}
-	return lenght_line;
+	return length_line;
+}
+
+template <typename T>
+double Point<T>::distance_complex(const Point<T>* point) { 
+	T delta = point->get_x() - _x;
+	T delta1 = point->get_y() - _y;
+	return std::abs(delta * delta + delta1 * delta1);
+}
+
+template <typename T>
+double broken_line<T>::length_complex() {
+	double length_line = 0;
+	for (int i = 1; i < _size; i++) {
+		length_line += _points[i - 1]->distance_complex(_points[i]);
+	}
+	return length_line;
 }
 
 //Задача №1
@@ -243,8 +287,11 @@ template <typename T>
 void broken_line<T>::make_polygon(const int N, const double radius) {
     // N - Заданное количество вершин N для N-угольника
     // radius - Радиус окружности, вписанной в N-угольник
+	if (N < 2 || N == 2) {
+		throw std::invalid_argument("N >= 2!");
+	}
 	broken_line<T> polygon;
-	double angle = 2 * 3.14159265358979323846 / N;  // Угол между вершинами N-угольника
+	double angle = 2 * M_PI / N;  // Угол между вершинами N-угольника
 	for (int i = 0; i < N; i++) {
 		T x = radius * std::cos(i * angle);
 		T y = radius * std::sin(i * angle);
@@ -253,4 +300,3 @@ void broken_line<T>::make_polygon(const int N, const double radius) {
 	}
 	std::cout << polygon << std::endl;
 }
-
